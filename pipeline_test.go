@@ -7,7 +7,7 @@ import (
 )
 
 func TestPipeline(t *testing.T) {
-	pc := 2
+	pc := 5
 	hc := 2
 	rc := 0
 
@@ -82,11 +82,11 @@ func TestPipeline_Retries(t *testing.T) {
 		p.Handler = func(i interface{}) (interface{}, error) {
 			mux.Lock()
 
-			act++
-
 			defer mux.Unlock()
 
-			if act < rc {
+			act++
+
+			if act <= rc {
 				return i, errors.New("poop")
 			}
 
