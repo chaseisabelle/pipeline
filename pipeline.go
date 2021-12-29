@@ -3,10 +3,13 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type Pipeline struct {
-	in *Pipe
+	in     *Pipe
+	lock   sync.RWMutex
+	opened bool
 }
 
 type Pipe struct {
@@ -24,7 +27,19 @@ type input struct {
 	retry uint
 }
 
+func (pl *Pipeline) Opened() bool {
+	pl.lock.RLock()
+
+	defer pl.lock.RUnlock()
+
+	return pl.opened
+}
+
 func (pl *Pipeline) Append(p *Pipe) error {
+	if pl.Opened() {
+		return errors.New("pipeline already opened")
+	}
+
 	if p.Handler == nil {
 		return errors.New("handler required")
 	}
@@ -48,6 +63,10 @@ func (pl *Pipeline) Append(p *Pipe) error {
 }
 
 func (pl *Pipeline) Open() error {
+	if pl.Opened() {
+		return errors.New("pipeline already opened")
+	}
+
 	if pl.in != nil {
 		return pl.in.open()
 	}
@@ -56,6 +75,10 @@ func (pl *Pipeline) Open() error {
 }
 
 func (pl *Pipeline) Feed(i interface{}) error {
+	if !pl.Opened() {
+		return errors.New("pipeline not opened")
+	}
+
 	if pl.in == nil {
 		return errors.New("must append a pipe to the pipeline")
 	}
@@ -67,6 +90,10 @@ func (pl *Pipeline) Feed(i interface{}) error {
 }
 
 func (pl *Pipeline) Close() error {
+	if !pl.Opened() {
+		return errors.New("pipeline not opened")
+	}
+
 	if pl.in == nil {
 		return errors.New("must append a pipe to the pipeline")
 	}
