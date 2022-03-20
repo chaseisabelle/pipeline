@@ -21,21 +21,34 @@ func TestPipeline(t *testing.T) {
 	for i := 0; i < pc; i++ {
 		p := &Pipe{}
 
-		p.Handler = func(i interface{}) (interface{}, error) {
+		e := p.Handler(func(i interface{}) (interface{}, error) {
 			mux.Lock()
 			act++
 			mux.Unlock()
 
 			return i, nil
+		})
+
+		if e != nil {
+			t.Error(e)
 		}
 
-		p.Handlers = uint(hc)
-		p.Retries = uint(rc)
+		e = p.Handlers(uint(hc))
 
-		err := pl.Append(p)
+		if e != nil {
+			t.Error(e)
+		}
 
-		if err != nil {
-			t.Error(err)
+		e = p.Retries(uint(rc))
+
+		if e != nil {
+			t.Error(e)
+		}
+
+		e = pl.Append(p)
+
+		if e != nil {
+			t.Error(e)
 		}
 	}
 
@@ -79,7 +92,7 @@ func TestPipeline_Retries(t *testing.T) {
 	for i := 0; i < pc; i++ {
 		p := &Pipe{}
 
-		p.Handler = func(i interface{}) (interface{}, error) {
+		p.handler = func(i interface{}) (interface{}, error) {
 			mux.Lock()
 
 			defer mux.Unlock()
@@ -93,8 +106,8 @@ func TestPipeline_Retries(t *testing.T) {
 			return i, nil
 		}
 
-		p.Handlers = uint(hc)
-		p.Retries = uint(rc)
+		p.handlers = uint(hc)
+		p.retries = uint(rc)
 
 		err := pl.Append(p)
 
@@ -125,5 +138,62 @@ func TestPipeline_Retries(t *testing.T) {
 
 	if act != exp {
 		t.Errorf("expected %d, actual %d", exp, act)
+	}
+}
+
+func TestPipeline_Opened(t *testing.T) {
+	pl := &Pipeline{}
+	p := &Pipe{}
+
+	h := func(_ interface{}) (interface{}, error) {
+		return nil, nil
+	}
+
+	err := p.Retries(0)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = p.Handlers(1)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = p.Handler(h)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = pl.Append(p)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if pl.Opened() {
+		t.Errorf("pipeline is not opened, but it says it is")
+	}
+
+	err = pl.Open()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !pl.Opened() {
+		t.Errorf("pipeline is opened, but it says it is not")
+	}
+
+	err = pl.Close()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if pl.Opened() {
+		t.Errorf("pipeline is closed, but it says it is opened")
 	}
 }

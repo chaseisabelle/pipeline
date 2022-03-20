@@ -13,9 +13,9 @@ type Pipeline struct {
 }
 
 type Pipe struct {
-	Handler  func(interface{}) (interface{}, error)
-	Handlers uint
-	Retries  uint
+	handler  func(interface{}) (interface{}, error)
+	handlers uint
+	retries  uint
 	in       chan *input
 	out      *Pipe
 	stop     chan struct{}
@@ -40,18 +40,18 @@ func (pl *Pipeline) Append(p *Pipe) error {
 		return errors.New("pipeline already opened")
 	}
 
-	if p.Handler == nil {
+	if p.handler == nil {
 		return errors.New("handler required")
 	}
 
-	if p.Handlers < 1 {
+	if p.handlers < 1 {
 		return errors.New("handler count required")
 	}
 
-	p.in = make(chan *input, p.Handlers)
+	p.in = make(chan *input, p.handlers)
 	p.out = nil
-	p.done = make(chan struct{}, p.Handlers)
-	p.stop = make(chan struct{}, p.Handlers)
+	p.done = make(chan struct{}, p.handlers)
+	p.stop = make(chan struct{}, p.handlers)
 
 	if pl.in != nil {
 		return pl.in.append(p)
@@ -67,11 +67,19 @@ func (pl *Pipeline) Open() error {
 		return errors.New("pipeline already opened")
 	}
 
-	if pl.in != nil {
-		return pl.in.open()
+	if pl.in == nil {
+		return errors.New("must append a pipe to the pipeline")
 	}
 
-	return errors.New("must append a pipe to the pipeline")
+	pl.lock.Lock()
+
+	err := pl.in.open()
+
+	pl.opened = true
+
+	pl.lock.Unlock()
+
+	return err
 }
 
 func (pl *Pipeline) Feed(i interface{}) error {
@@ -98,7 +106,45 @@ func (pl *Pipeline) Close() error {
 		return errors.New("must append a pipe to the pipeline")
 	}
 
-	return pl.in.close()
+	err := pl.in.close()
+
+	pl.lock.RLock()
+
+	pl.opened = false
+
+	pl.lock.RUnlock()
+
+	return err
+}
+
+func (p *Pipe) Handler(h func(interface{}) (interface{}, error)) error {
+	if p.handler != nil {
+		return errors.New("handler already set")
+	}
+
+	p.handler = h
+
+	return nil
+}
+
+func (p *Pipe) Handlers(h uint) error {
+	if p.handlers != 0 {
+		return errors.New("handler count already set")
+	}
+
+	p.handlers = h
+
+	return nil
+}
+
+func (p *Pipe) Retries(r uint) error {
+	if p.retries != 0 {
+		return errors.New("retry count already set")
+	}
+
+	p.retries = r
+
+	return nil
 }
 
 func (p *Pipe) append(end *Pipe) error {
@@ -120,17 +166,17 @@ func (p *Pipe) open() error {
 		}
 	}
 
-	for h := uint(0); h < p.Handlers; h++ {
+	for h := uint(0); h < p.handlers; h++ {
 		go func() {
 			for {
 				select {
 				case in := <-p.in:
-					out, err := p.Handler(in.data)
+					out, err := p.handler(in.data)
 
 					if err != nil {
 						in.retry++
 
-						if in.retry <= p.Retries {
+						if in.retry <= p.retries {
 							p.in <- in
 						}
 
@@ -170,7 +216,7 @@ func (p *Pipe) feed(i *input) error {
 }
 
 func (p *Pipe) close() error {
-	for i := uint(0); i < p.Handlers; i++ {
+	for i := uint(0); i < p.handlers; i++ {
 		p.stop <- struct{}{}
 	}
 
@@ -179,13 +225,13 @@ func (p *Pipe) close() error {
 	for range p.done {
 		i++
 
-		if i >= p.Handlers {
+		if i >= p.handlers {
 			break
 		}
 	}
 
-	if i > p.Handlers {
-		return fmt.Errorf("got %d done, but only expected %d", i, p.Handlers)
+	if i > p.handlers {
+		return fmt.Errorf("got %d done, but only expected %d", i, p.handlers)
 	}
 
 	close(p.in)
