@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -13,7 +14,7 @@ type Pipeline struct {
 }
 
 type Pipe struct {
-	handler  func(interface{}) (interface{}, error)
+	handler  func(context.Context, interface{}) (interface{}, error)
 	handlers uint
 	retries  uint
 	in       chan *input
@@ -23,8 +24,9 @@ type Pipe struct {
 }
 
 type input struct {
-	data  interface{}
-	retry uint
+	data    interface{}
+	context context.Context
+	retry   uint
 }
 
 func (pl *Pipeline) Opened() bool {
@@ -82,7 +84,7 @@ func (pl *Pipeline) Open() error {
 	return err
 }
 
-func (pl *Pipeline) Feed(i interface{}) error {
+func (pl *Pipeline) Feed(c context.Context, i interface{}) error {
 	if !pl.Opened() {
 		return errors.New("pipeline not opened")
 	}
@@ -92,8 +94,9 @@ func (pl *Pipeline) Feed(i interface{}) error {
 	}
 
 	return pl.in.feed(&input{
-		data:  i,
-		retry: 0,
+		data:    i,
+		context: c,
+		retry:   0,
 	})
 }
 
@@ -117,7 +120,7 @@ func (pl *Pipeline) Close() error {
 	return err
 }
 
-func (p *Pipe) Handler(h func(interface{}) (interface{}, error)) error {
+func (p *Pipe) Handler(h func(context.Context, interface{}) (interface{}, error)) error {
 	if p.handler != nil {
 		return errors.New("handler already set")
 	}
@@ -171,7 +174,7 @@ func (p *Pipe) open() error {
 			for {
 				select {
 				case in := <-p.in:
-					out, err := p.handler(in.data)
+					out, err := p.handler(in.context, in.data)
 
 					if err != nil {
 						in.retry++

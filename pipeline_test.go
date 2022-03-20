@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -21,9 +22,11 @@ func TestPipeline(t *testing.T) {
 	for i := 0; i < pc; i++ {
 		p := &Pipe{}
 
-		e := p.Handler(func(i interface{}) (interface{}, error) {
+		e := p.Handler(func(_ context.Context, i interface{}) (interface{}, error) {
 			mux.Lock()
+
 			act++
+
 			mux.Unlock()
 
 			return i, nil
@@ -59,7 +62,7 @@ func TestPipeline(t *testing.T) {
 	}
 
 	for i := 0; i < max; i++ {
-		err = pl.Feed(i)
+		err = pl.Feed(nil, i)
 	}
 
 	if err != nil {
@@ -92,7 +95,7 @@ func TestPipeline_Retries(t *testing.T) {
 	for i := 0; i < pc; i++ {
 		p := &Pipe{}
 
-		p.handler = func(i interface{}) (interface{}, error) {
+		p.handler = func(_ context.Context, i interface{}) (interface{}, error) {
 			mux.Lock()
 
 			defer mux.Unlock()
@@ -123,7 +126,7 @@ func TestPipeline_Retries(t *testing.T) {
 	}
 
 	for i := 0; i < max; i++ {
-		err = pl.Feed(i)
+		err = pl.Feed(nil, i)
 	}
 
 	if err != nil {
@@ -145,7 +148,7 @@ func TestPipeline_Opened(t *testing.T) {
 	pl := &Pipeline{}
 	p := &Pipe{}
 
-	h := func(_ interface{}) (interface{}, error) {
+	h := func(_ context.Context, _ interface{}) (interface{}, error) {
 		return nil, nil
 	}
 
