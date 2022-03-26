@@ -200,3 +200,188 @@ func TestPipeline_Opened(t *testing.T) {
 		t.Errorf("pipeline is closed, but it says it is opened")
 	}
 }
+
+func BenchmarkPipeline_Interface(b *testing.B) {
+	pc := 5
+	hc := 2
+	rc := 0
+	pl := &Pipeline{}
+
+	for i := 0; i < pc; i++ {
+		p := &Pipe{}
+
+		e := p.Handler(func(_ context.Context, i interface{}) (interface{}, error) {
+			return i, nil
+		})
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = p.Handlers(uint(hc))
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = p.Retries(uint(rc))
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = pl.Append(p)
+
+		if e != nil {
+			b.Error(e)
+		}
+	}
+
+	err := pl.Open()
+
+	if err != nil {
+		b.Error(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		err = pl.Feed(nil, i)
+	}
+
+	if err != nil {
+		b.Error(err)
+	}
+
+	err = pl.Close()
+
+	if err != nil {
+		b.Error(err)
+	}
+}
+
+func BenchmarkPipeline_Int(b *testing.B) {
+	pc := 5
+	hc := 2
+	rc := 0
+	pl := &Pipeline{}
+
+	for i := 0; i < pc; i++ {
+		p := &Pipe{}
+
+		e := p.Handler(func(_ context.Context, i interface{}) (interface{}, error) {
+			return i.(int), nil
+		})
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = p.Handlers(uint(hc))
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = p.Retries(uint(rc))
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = pl.Append(p)
+
+		if e != nil {
+			b.Error(e)
+		}
+	}
+
+	err := pl.Open()
+
+	if err != nil {
+		b.Error(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		err = pl.Feed(nil, i)
+	}
+
+	if err != nil {
+		b.Error(err)
+	}
+
+	err = pl.Close()
+
+	if err != nil {
+		b.Error(err)
+	}
+}
+
+func BenchmarkPipeline_Struct(b *testing.B) {
+	pc := 5
+	hc := 2
+	rc := 0
+	pl := &Pipeline{}
+
+	in := make([]struct {
+		i int
+	}, b.N)
+
+	for i := 0; i < pc; i++ {
+		p := &Pipe{}
+
+		e := p.Handler(func(_ context.Context, i interface{}) (interface{}, error) {
+			return i.(struct {
+				i int
+			}), nil
+		})
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = p.Handlers(uint(hc))
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = p.Retries(uint(rc))
+
+		if e != nil {
+			b.Error(e)
+		}
+
+		e = pl.Append(p)
+
+		if e != nil {
+			b.Error(e)
+		}
+	}
+
+	err := pl.Open()
+
+	if err != nil {
+		b.Error(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		in[i] = struct {
+			i int
+		}{
+			i: i,
+		}
+	}
+
+	for i := 0; i < b.N; i++ {
+		err = pl.Feed(nil, in[i])
+	}
+
+	if err != nil {
+		b.Error(err)
+	}
+
+	err = pl.Close()
+
+	if err != nil {
+		b.Error(err)
+	}
+}
