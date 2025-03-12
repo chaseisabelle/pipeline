@@ -191,8 +191,9 @@ func (p *Pipe) open() error {
 					}
 
 					p.out.in <- &input{
-						data:  out,
-						retry: 0,
+						data:    out,
+						context: in.context,
+						retry:   0,
 					}
 				case <-p.stop:
 					if len(p.in) != 0 {
